@@ -121,7 +121,7 @@ def inst_json(args, data):
     if isinstance(x, dict):
         out={}
         for k in x:
-            if x[k]==None or isinstance(k, (int, float, bool, tuple, list, dict)):
+            if x[k]==None or isinstance(x[k], (int, float, bool, tuple, list, dict, str, set)):
                 out[k]=x[k]
     else:
         out=x

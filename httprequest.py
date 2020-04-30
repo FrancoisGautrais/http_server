@@ -65,7 +65,7 @@ BODY_BYTES="bytes"
 from urllib.parse import unquote
 
 JSON_MIME=["application/json", "application/x-javascript", "text/javascript", "text/x-javascript", "text/x-json"]
-URLENCODED_MIME= [ "application/x-static-form-urlencoded" ]
+URLENCODED_MIME= [ "application/x-static-form-urlencoded", "application/x-www-form-urlencoded" ]
 TEXT_MIME=["text/plain", "text/html", "text/javascript", "text/x-javascript", "text/x-json"]
 
 
@@ -213,7 +213,9 @@ class HTTPRequest(_HTTP):
         if ct in JSON_MIME:
             self._body_type=BODY_DICT
             content=self._socket.read(cl).decode("utf8")
-            self.body=json.loads(content)
+            if len(content)>0:
+                self.body=json.loads(content)
+            else: self.body=None
         elif ct in URLENCODED_MIME:
             self._body_type=BODY_DICT
             self.body=parse_urlencoded_params(self._socket.read(cl).decode("utf8"))
@@ -229,8 +231,8 @@ class HTTPRequest(_HTTP):
             clist = val.split(";")
             for x in clist:
                 x = x.split("=")
-                k = x[0].rstrip()
-                v = x[1].lstrip() if len(x) > 1 else ""
+                k = x[0].lstrip()
+                v = x[1].rstrip() if len(x) > 1 else ""
                 self.cookies[k] = v
         self._headers[key]= val
 
@@ -294,30 +296,53 @@ class HTTPResponse(_HTTP):
         else:
             self.serve_file(path)
 
-    def serve_file(self, path : str, urlReq=None, forceDownload=False, data={}):
-        fd=None
+    def serve_file(self, path: str, urlReq=None, forceDownload=False, data={}, contenlength=None):
+        fd = None
         try:
-            fd=filecache.open(path, "rb")
+            fd = filecache.open(path, "rb")
         except Exception as err:
             self.code = HTTP_NOT_FOUND
             self.msg = STR_HTTP_ERROR[HTTP_NOT_FOUND]
             self.content_type("text/plain")
             if urlReq:
-                self.end(str(urlReq)+" not found")
+                self.end(str(urlReq) + " not found")
             else:
-                self.end("File not found : "+str(err))
+                self.end("File not found : " + str(err))
             return
 
-        #self._isStreaming=True
+        # self._isStreaming=True
         self.content_type(filecache.mime(path))
-        self.header("Content-Length", str(os.stat(path).st_size))
+        if not contenlength:
+            self.header("Content-Length", str(os.stat(path).st_size))
+        else:
+            self.header("Content-Length", str(contenlength))
 
         if forceDownload:
-            self.header("Content-Disposition", "attachment; filename=\""+\
-                    os.path.basename(path)+"\"")
-        with filecache.open(path, "rb") as f:
-            self.end(f.read())
-        #self.end(open(path, "rb"))
+            self.header("Content-Disposition", "attachment; filename=\"" + \
+                        os.path.basename(path) + "\"")
+        self.end(fd)
+        # self.end(open(path, "rb"))
+
+    def serve_large_file(self, path: str, contenlength=None):
+        fd = None
+        try:
+            fd = filecache.open(path, "rb")
+        except Exception as err:
+            self.code = HTTP_NOT_FOUND
+            self.msg = STR_HTTP_ERROR[HTTP_NOT_FOUND]
+            self.content_type("text/plain")
+
+        # self._isStreaming=True
+        self.content_type(filecache.mime(path))
+        if not contenlength:
+            self.header("Content-Length", str(os.stat(path).st_size))
+        else:
+            self.header("Content-Length", str(contenlength))
+
+        self.header("Content-Disposition", "attachment; filename=\"" + \
+                        os.path.basename(path) + "\"")
+        self.end(fd)
+        # self.end(open(path, "rb"))
 
     def _set_json_response(self, httpcode : int, code : int , msg : str, js):
         self.header("Content-Type", "application/json")
@@ -353,16 +378,27 @@ class HTTPResponse(_HTTP):
             out=self.body
         elif typ==BODY_STRING:
             out=bytes(self.body, "utf8")
+        elif typ==BODY_FILE:
+            out=self.body
         else: out=bytes()
         self.header("Connection", "close")
-        self.header("Content-Length", len(out))
+        if typ!=BODY_FILE:
+            self.header("Content-Length", len(out))
         try:
             soc.send(fromutf8(self.version + " " + str(self.code) + " " + self.msg + "\r\n"))
             for k in self._headers:
                 soc.send(fromutf8(k + ": " + str(self._headers[k]) + "\r\n"))
             soc.send(fromutf8("\r\n"))
-
-            soc.send(out)
+            if typ!=BODY_FILE:
+                soc.send(out)
+            else:
+                chunk=1024*1024
+                left=int(self._headers["Content-Length"])
+                while left>0:
+                    buffer=out.read(chunk)
+                    left-=len(buffer)
+                    soc.send(buffer)
+                out.close()
         except Exception as err:
             log.critical("Write error, \n================\nrecv:\n", self._recieved.decode(errors="replace")," \nsent:\n",
                          soc.sent,"\n==========================")
