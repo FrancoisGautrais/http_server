@@ -5,6 +5,12 @@ import sys
 from importlib import import_module
 from inspect import getmembers, isfunction
 
+import log
+
+depth=0
+def depthstr():
+    return " "+" ".join([" " for i in range(depth)])
+
 class InstructionsLoader:
     PARENT_PACKAGE=".".join(__name__.split(".")[:-1])
     def __init__(self):
@@ -28,10 +34,15 @@ class InstructionsLoader:
 
 
     def call(self, name, args, data):
+        global depth
         x=None
         if not name in self.commands:
             sys.stderr.write("Command '"+str(name)+"' not found\n")
-        return self.commands[name](args, data)
+        depth+=1
+        #log.e("%s%s(%s)" %(depthstr(), name, ",".join([ str(i)  for i in args])))
+        x= self.commands[name](args, data)
+        depth -= 1
+        return x
 
 _instance=None
 

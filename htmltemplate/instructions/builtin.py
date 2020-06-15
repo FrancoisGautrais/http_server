@@ -15,7 +15,6 @@ def custom_deepcopy(x):
 
 
 
-
 def inst_include(args, data):
     x=custom_deepcopy(data)
     with filecache.open(args[0]) as f:
@@ -150,7 +149,7 @@ def inst_minToStr(args, data):
     else: return m+" minutes"
 
 def inst_jsbool(args, data):
-    return "true" if args[0] else "false"
+    return ("true" if args[0] else "false") if args else "false"
 
 def inst_urlencode(args, data): return parse.quote(args[0])
 

@@ -53,7 +53,7 @@ class SocketWrapper:
             while bytes_recd < l:
                 chunk = self._socket.recv(min(l - bytes_recd, 2048))
                 if chunk == b'':
-                    log.error("Connection problème here")
+                    log.error("Connection problème here '%d' " % bytes_recd)
                     self.close()
                     raise DisconnectException
                 #    #self.dump_recevied()

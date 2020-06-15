@@ -323,6 +323,19 @@ class HTTPResponse(_HTTP):
         self.end(fd)
         # self.end(open(path, "rb"))
 
+    def serve_file_data(self, data, mime : str, filename : str,  forceDownload=False):
+        if isinstance(data, str) : data=data.encode("utf-8")
+        if isinstance(data, (dict, list, tuple)): data=json.dumps(data).encode("ascii")
+        if not isinstance(data, bytes):
+            raise Exception("serve_file_data data doit etre bytes ou str")
+        self.content_type(mime)
+        self.header("Content-Length", str(len(data)))
+
+        if forceDownload:
+            self.header("Content-Disposition", "attachment; filename=\"" + \
+                        filename+ "\"")
+        self.end(data)
+
     def serve_large_file(self, path: str, contenlength=None):
         fd = None
         try:
@@ -400,7 +413,7 @@ class HTTPResponse(_HTTP):
                     soc.send(buffer)
                 out.close()
         except Exception as err:
-            log.critical("Write error, \n================\nrecv:\n", self._recieved.decode(errors="replace")," \nsent:\n",
+            log.critical("Write error, \n================\nrecv:\n", err," \nsent:\n",
                          soc.sent,"\n==========================")
 
 

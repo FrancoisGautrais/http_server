@@ -55,12 +55,14 @@ class HTTPServer(ServerSocket):
 
         while self._end_loop.value():
             x = super().accept()
+            self._handlerequest_oneshot(HTTPRequest(x))
+            """
             if self.mode == HTTPServer.SINGLE_THREAD:
                 self._handlerequest_oneshot(HTTPRequest(x))
             elif self.mode == HTTPServer.SPAWN_THREAD:
                 start_thread(Callback(HTTPServer._handlerequest_oneshot, self, x))
             elif self.mode == HTTPServer.CONST_THREAD:
-                self.waitqueue.enqueue((x, time.time()))
+                self.waitqueue.enqueue((x, time.time()))"""
 
     def stop(self):
         self._end_loop.set(False)
