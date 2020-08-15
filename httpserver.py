@@ -114,6 +114,9 @@ class HTTPServer(ServerSocket):
         res.serve_file(os.path.join(self.www_dir, req.path[1:]))
 
     def serve_file_gen(self, req: HTTPRequest, res : HTTPResponse, data):
+        res.header("Cache-Control", "max-age=0, no-cache, no-store, must-revalidate")
+        res.header("Pragma", "no-cache")
+        res.header("Expires", "Wed, 11 Jan 1984 05:00:00 GMT")
         res.serve_file_gen(os.path.join(self.www_dir, req.path[1:]), data)
 
 

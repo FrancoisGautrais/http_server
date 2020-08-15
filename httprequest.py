@@ -282,6 +282,7 @@ class HTTPResponse(_HTTP):
             self._body_type=BODY_EMPTY
 
     def serve_file_gen(self, path : str, data={}):
+
         if not os.path.isfile(path):
             log.error("Le fichier '"+str(path)+"' est introuvable")
             self.serve404()
@@ -416,6 +417,10 @@ class HTTPResponse(_HTTP):
             log.critical("Write error, \n================\nrecv:\n", err," \nsent:\n",
                          soc.sent,"\n==========================")
 
+    def no_cache(self):
+        self.header("Cache-Control", "max-age=0, no-cache, no-store, must-revalidate")
+        self.header("Pragma", "no-cache")
+        self.header("Expires", "Wed, 11 Jan 1984 05:00:00 GMT")
 
     def serv(self, code, headers={}, data={}, file=None, filegen=None):
         for h in headers: self.header(h, headers[h])
@@ -446,7 +451,7 @@ class HTTPResponse(_HTTP):
         self.serv(301, dictinit(header, {"Location": url }), data, file, filegen)
 
     def serve302(self, url, header={}, data={}, file=None, filegen=None):
-        self.serv(301, dictinit(header, {"Location": url}), data, file, filegen)
+        self.serv(302, dictinit(header, {"Location": url}), data, file, filegen)
 
     def serve304(self, header={}, data={}, file=None, filegen=None ): self.serv(304, header, data, file, filegen)
 
