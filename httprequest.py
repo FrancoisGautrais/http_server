@@ -14,6 +14,7 @@ from .utils import dictinit
 from .socketwrapper import SocketWrapper
 from .formfile import FormFile
 from .htmltemplate.htmlgen import html_gen
+from .htmltemplate.instructions_loader import InstructionStackException
 
 HTTP_OK=200
 HTTP_BAD_REQUEST=400
@@ -48,6 +49,8 @@ _HTTP_CODE={
     401: "Unauthorized",
     403: "Forbidden",
     404: "Not Found",
+    405: "Method Not Allowed",
+    418: "I’m a teapot",
 
     500: "Internal Server Error",
     501: "Not Implemented",
@@ -157,6 +160,8 @@ class HTTPRequest(_HTTP):
     def header(self, key : str):
         if key in self._headers:
             return self._headers[key]
+        if key.lower() in self._headers:
+            return self._headers[key.lower()]
         return None
 
     def get_total_time(self):
@@ -164,8 +169,13 @@ class HTTPRequest(_HTTP):
 
     def parse(self):
         self._parse_head()
-        if ("Content-Type" in self._headers) and not self.header("Content-Type").startswith("multipart/form-data;"):
+        if (("Content-Type" in self._headers) and not self.header("Content-Type").startswith("multipart/form-data")) or\
+            (("content-type" in self._headers) and not self.header("content-type").startswith("multipart/form-data")):
             self._parse_body()
+
+    def is_multipart(self):
+        h = self.header("Content-Type")
+        return h and h.startswith("multipart/form-data")
 
     def multipart_next_file(self):
         ct = self.header("Content-Type")
@@ -262,6 +272,7 @@ class HTTPResponse(_HTTP):
         self.code=code
         self.request= req
         self.msg=STR_HTTP_ERROR[code]
+        self._set_cookies={}
 
 
     def header(self, key : str, val):
@@ -281,6 +292,8 @@ class HTTPResponse(_HTTP):
         else:
             self._body_type=BODY_EMPTY
 
+
+
     def serve_file_gen(self, path : str, data={}):
 
         if not os.path.isfile(path):
@@ -293,7 +306,22 @@ class HTTPResponse(_HTTP):
         data["_request"] = self.request
         data["_response"] = self
         if m!="application/octet-stream":
-            self.end(html_gen(path, data))
+            try:
+                self.end(html_gen(path, data))
+            except InstructionStackException as err:
+                out="""<html>
+                    <head>
+                      <meta charset="UTF-8">
+                    </head><body><h1>%s</h1><ul>""" % err.type
+                i=0
+                l=len(err.args[0])
+                for line in reversed(err.args[0]):
+                    out+="<li style=\"color: #ff0000;\">%s</li>" % (line if i<l-1 else ('<b>%s</b>'%line))
+                    i+=1
+                self.code=500;
+                self.end(out+"</ul></body></html>")
+
+
         else:
             self.serve_file(path)
 
@@ -382,6 +410,18 @@ class HTTPResponse(_HTTP):
         self.header("Location", url)
         self.end("")
 
+    def set_cookie(self, name, value, options={}):
+        self._set_cookies[name]={
+            "name" : name,
+            "value" : value,
+            "options" : options
+        }
+
+    def clear_cookie(self, name):
+        self.set_cookie(name, "deleted", {
+            "path" : "/",
+            "expires" : "Thu, 01 Jan 1970 00:00:00 GMT"
+        })
 
     def write(self, soc : SocketWrapper):
         out=None
@@ -398,10 +438,17 @@ class HTTPResponse(_HTTP):
         self.header("Connection", "close")
         if typ!=BODY_FILE:
             self.header("Content-Length", len(out))
+
         try:
             soc.send(fromutf8(self.version + " " + str(self.code) + " " + self.msg + "\r\n"))
             for k in self._headers:
                 soc.send(fromutf8(k + ": " + str(self._headers[k]) + "\r\n"))
+            for key in self._set_cookies:
+                cookie = self._set_cookies[key]
+                tmp="Set-Cookie: %s=%s" % (cookie["name"], cookie["value"])
+                tmp2="; ".join(list(map(lambda y: "%s=%s" % (y, cookie["options"][y]),  cookie["options"])))
+                if tmp2: tmp+="; "+tmp2
+                soc.send(fromutf8(tmp+"\r\n"))
             soc.send(fromutf8("\r\n"))
             if typ!=BODY_FILE:
                 soc.send(out)
@@ -413,7 +460,7 @@ class HTTPResponse(_HTTP):
                     left-=len(buffer)
                     soc.send(buffer)
                 out.close()
-        except Exception as err:
+        except IOError as err:
             log.critical("Write error, \n================\nrecv:\n", err," \nsent:\n",
                          soc.sent,"\n==========================")
 
@@ -447,7 +494,6 @@ class HTTPResponse(_HTTP):
 
     def serve300(self, header={}, data={}, file=None, filegen=None ): self.serv(300, header, data, file, filegen)
     def serve301(self, url, header={}, data={}, file=None, filegen=None ):
-
         self.serv(301, dictinit(header, {"Location": url }), data, file, filegen)
 
     def serve302(self, url, header={}, data={}, file=None, filegen=None):
@@ -459,6 +505,8 @@ class HTTPResponse(_HTTP):
     def serve401(self, header={}, data={}, file=None, filegen=None ): self.serv(401, header, data, file, filegen)
     def serve403(self, header={}, data={}, file=None, filegen=None ): self.serv(403, header, data, file, filegen)
     def serve404(self, header={}, data={}, file=None, filegen=None ): self.serv(404, header, data, file, filegen)
+    def serve405(self, header={}, data={}, file=None, filegen=None ): self.serv(405, header, data, file, filegen)
+    def serve418(self, header={}, data={}, file=None, filegen=None ): self.serv(418, header, data, file, filegen)
 
     def serve500(self, header={}, data={}, file=None, filegen=None ): self.serv(500, header, data, file, filegen)
     def serve501(self, header={}, data={}, file=None, filegen=None ): self.serv(501, header, data, file, filegen)
@@ -466,6 +514,63 @@ class HTTPResponse(_HTTP):
     def serve503(self, header={}, data={}, file=None, filegen=None ): self.serv(503, header, data, file, filegen)
     def serve504(self, header={}, data={}, file=None, filegen=None ): self.serv(504, header, data, file, filegen)
 
+    #
+    #  ==== Utils methods
+    #
+    def serv_json(self, httpcode, code, msg, data=None):
+        self.serv(httpcode, {"Content-Type", "application/json"}, {
+            "code": code,
+            "message": msg,
+            "data": data
+        })
+
+    def serv_json_ok(self, data=None):
+        self.serv(200, {"Content-Type": "application/json"}, {
+            "code": 0,
+            "message": "Success",
+            "data": data
+        })
 
 
+    def serv_json_bad_request(self, data=None):
+        self.serv(400, {"Content-Type": "application/json"}, {
+            "code": 400,
+            "message": "Bad Request",
+            "data": data
+        })
+
+    def serv_json_unauthorized(self, data=None):
+        self.serv(401, {"Content-Type": "application/json"}, {
+            "code": 401,
+            "message": "Unauthorised",
+            "data": data
+        })
+
+    def serv_json_forbidden(self, data=None):
+        self.serv(403, {"Content-Type": "application/json"}, {
+            "code": 403,
+            "message": "Forbidden",
+            "data": data
+        })
+
+    def serv_json_not_found(self, data=None):
+        self.serv(404, {"Content-Type": "application/json"}, {
+            "code": 404,
+            "message": "Ressource not found",
+            "data": data
+        })
+
+    def serv_json_method_not_allowed(self, data=None):
+        self.serv(405, {"Content-Type": "application/json"}, {
+            "code": 405,
+            "message": "Method Not Allowed",
+            "data": data
+        })
+
+    def serv_json_teapot(self, data=None):
+        self.serv(418, {"Content-Type": "application/json"}, {
+            "code": 418,
+            "message": "I’m a teapot",
+            "data": data
+        })
 

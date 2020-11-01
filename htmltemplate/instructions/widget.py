@@ -8,8 +8,8 @@ def inst_select(args, data):
     return x
 
 def inst_multiple_select(args, data):
-    return mat_select(args[0], args[1], args[2],args[3] if len(args)>3 else None,
-                  True, data["_request"].is_mobile()).html()
+    return mat_select(args[0], args[1], args[2], args[3] if len(args)>3 else None,
+                  True, data["_request"].is_mobile(), placeholder=args[4] if len(args)>4 else None).html()
 
 def inst_input_text(args, data):
     return mat_input_text(*args).html()

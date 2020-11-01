@@ -1,12 +1,13 @@
 from .elem import *
 
-def mat_select(id, label, options, name=None, multiple=False, mobile=False, classes=[], optionsClasses=[]):
+def mat_select(id, label, options, name=None, multiple=False, mobile=False, classes=[], optionsClasses=[], placeholder=None):
     lbl=htmllabel(label)
     select=htmlselect(id=id)
     select.add_class(classes)
     if mobile: select.add_class("browser-default")
     if multiple: select.attrs["multiple"]=None
     if name: select.attrs["name"]=name
+    if placeholder: select.attrs["placeholder"]=placeholder
     for k in options:
         oa={"value" : k}
         select.append(htmloption(options[k], classes=optionsClasses, attrs=oa))

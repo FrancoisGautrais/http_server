@@ -3,6 +3,7 @@ from ...filecache import filecache
 from ..htmlgen import html_gen_fd
 import  copy
 import json
+from ..instructions_loader import InstructionExcpetion, InstructionStackException, builtin_call
 
 def custom_deepcopy(x):
     cp = {}
@@ -13,14 +14,49 @@ def custom_deepcopy(x):
             cp[key]=copy.deepcopy(x[key])
     return cp
 
+def inst_import(args, data): # import without dynamic generation
+    out=[]
+    try:
+        for file in args:
+            with filecache.open(file) as f:
+                out.append(f.read())
+        return "\n".join(out)
+    except FileNotFoundError as err:
+        raise InstructionExcpetion("Erreur import: '%s' est inaccessible " % args[0])
 
+def inst_css_import(args, data):
+    isProd = data["production"] if "production" in data else False
+    out=[]
+    file=""
+    for file in args:
+        if not isProd:
+            out.append('<link rel="stylesheet" type="text/css" href="%s">' % file)
+        else:
+            out.append('<style>%s</style>' % builtin_call("import", ['www'+file], None))
+    return "\n ".join(out)
 
-def inst_include(args, data):
+def inst_js_import(args, data):
+    isProd = data["production"] if "production" in data else False
+    out=[]
+    file=""
+    for file in args:
+        if not isProd:
+            out.append('<script type="text/javascript" src="%s"></script>' % file)
+        else:
+            out.append('<script>%s</script>' % builtin_call("import", ['www'+file], None))
+    return "\n ".join(out)
+
+def inst_include(args, data):# import with dynamic generation
     x=custom_deepcopy(data)
-    with filecache.open(args[0]) as f:
-        if len(args)>1:
-            x.update(args[1])
-        return html_gen_fd(f, x)
+    try:
+        with filecache.open(args[0]) as f:
+            if len(args)>1:
+                x.update(args[1])
+            return html_gen_fd(f, x, args[0])
+    except FileNotFoundError as err:
+        raise InstructionExcpetion("Erreur include: '%s' est inaccessible "%args[0])
+
+
 
 def inst_get(args, data):
     acc=data

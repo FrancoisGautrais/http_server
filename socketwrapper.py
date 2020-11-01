@@ -55,7 +55,7 @@ class SocketWrapper:
                 if chunk == b'':
                     log.error("Connection problème here '%d' " % bytes_recd)
                     self.close()
-                    raise DisconnectException
+                    #raise DisconnectException
                 #    #self.dump_recevied()
                 #    #raise Exception("socket connection broken, bytes left : "+str(l-bytes_recd), "chucks = ", base)
                 base+=chunk

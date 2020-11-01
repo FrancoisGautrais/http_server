@@ -1,6 +1,6 @@
 import threading
 import uuid
-
+import random
 import pystache
 from threading import Lock
 from threading import Thread
@@ -107,8 +107,6 @@ _MIME_TO_TYPES={
 }
 MIME_TO_TYPES={}
 
-def new_id():
-    return str(uuid.uuid4())[:8]
 
 def _init_mime():
     global _MIME_TO_TYPES
@@ -139,3 +137,76 @@ def mime_to_type(m):
         return MIME_TO_TYPES[first]["*"]
     return MIME_TO_TYPES["*"]
 
+from urllib.parse import unquote_plus, quote_plus
+
+def urldecode(string, encoding='utf-8', errors='replace'):
+    return unquote_plus(string, encoding=encoding, errors=errors)
+
+def urlencode(string, safe='', encoding=None, errors=None):
+    return quote_plus(string, safe, encoding, errors)
+
+
+def encode_dict(opt):
+    out=""
+    i=0
+    for key in opt:
+        if i>0:
+            out+="&"
+        if isinstance(opt[key], dict):
+            val = urlencode(json.dumps(opt[key]))
+        else:
+            val=urlencode(opt[key])
+        out+="%s=%s" % (key, val)
+        i+=1
+    return out
+
+def encode_cookies(cookies):
+    return  "; ".join([str(x)+"="+str(y) for x,y in cookies.items()])
+
+
+def dictassign(src, *args):
+    for x in args:
+        for y in x:
+            src[y]=x[y]
+    return src
+
+def encode_dict(opt):
+    out=""
+    i=0
+    for key in opt:
+        if i>0:
+            out+="&"
+        if isinstance(opt[key], dict):
+            val = urlencode(json.dumps(opt[key]))
+        else:
+            val=urlencode(opt[key])
+        out+="%s=%s" % (key, val)
+        i+=1
+    return out
+
+def dictget(obj, key, default=None):
+    return obj[key] if key in obj else default
+
+def url(self, path="/", attr=None):
+    url = self.config["url"] + path
+    if attr:
+        url += "?"
+        i = 0
+        for key in attr:
+            if i > 0:
+                url += "&"
+            val = attr[key]
+            url += urlencode(key) + "=" + urlencode(val)
+            i += 1
+    return url
+
+
+_KEY_CHARACTER="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-"
+
+
+def new_id( size = 32):
+    n = len(_KEY_CHARACTER)
+    out = ""
+    for i in range(size):
+        out += _KEY_CHARACTER[random.randint(0, n - 1)]
+    return out
