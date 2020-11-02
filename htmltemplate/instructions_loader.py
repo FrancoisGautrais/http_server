@@ -89,8 +89,6 @@ class InstructionsLoader:
         depth+=1
         #log.e("%s%s(%s)" %(depthstr(), name, ",".join([ str(i)  for i in args])))
 
-
-
         try:
             if not name in self.commands:
                 raise InstructionNotFoundExcpetion("Fonction '%s' non définie" % name)

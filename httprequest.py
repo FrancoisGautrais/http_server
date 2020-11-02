@@ -144,6 +144,7 @@ class HTTPRequest(_HTTP):
         self.filename=""
         self._head_line_parsed=parse_headline
         self._socket=socket
+        self.ip=self._socket
 
         if self._head_line_parsed:
             self._parse_command_line()
@@ -156,6 +157,9 @@ class HTTPRequest(_HTTP):
         if info:
             return "mobi" in info.lower()
         return False
+
+    def get_ip(self):
+        return self._socket.get_ip()
 
     def header(self, key : str):
         if key in self._headers:

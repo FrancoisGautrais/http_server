@@ -243,7 +243,7 @@ class RESTServer(HTTPServer):
             else:
                 return res.serve_file(filename)
         else:
-            res.serve_file_gen(filename)
+            res.serve_file(filename)
     """
         Ajoute une route vers une génération de fichier depuis un fichier pattern
         :param methods (str, list, tuple) la ou les méthode à utiliser

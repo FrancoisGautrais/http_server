@@ -57,18 +57,18 @@ class HTTPServer(ServerSocket):
 
         while self._end_loop.value():
             x = super().accept()
-            self._handlerequest_oneshot(HTTPRequest(x))
+            #self._handlerequest_oneshot(HTTPRequest(x))
 
-            """
             if self.mode == HTTPServer.SINGLE_THREAD:
                 self._handlerequest_oneshot(HTTPRequest(x))
             elif self.mode == HTTPServer.SPAWN_THREAD:
                 start_thread(Callback(HTTPServer._handlerequest_oneshot, self, x))
             elif self.mode == HTTPServer.CONST_THREAD:
-                self.waitqueue.enqueue((x, time.time()))"""
+                self.waitqueue.enqueue((x, time.time()))
 
     def stop(self):
         self._end_loop.set(False)
+
 
     def _handlerequest_loop(self, i):
         soc, t=self.waitqueue.dequeue()
@@ -86,7 +86,7 @@ class HTTPServer(ServerSocket):
             req.stop_time = time.time()
             req.total_time = req.stop_time - req.start_time
 
-            log.debug(req.method, req.url, " -> ", res.code," in %.3f ms" % (req.total_time*1000))
+            log.debug("%s [%s]" % (req.method, soc.get_ip()), req.url, " -> " , res.code," in %.3f ms" % (req.total_time*1000))
 
             #attente de la prochaine requete
             soc, t = self.waitqueue.dequeue()
@@ -100,6 +100,7 @@ class HTTPServer(ServerSocket):
                 log.critical("========== Error unable to read HTTP first line ==========")
 
         req.parse()
+        ip = req.get_ip()
         res=HTTPResponse(req, 200, )
         self.handlerequest(req, res)
 
@@ -107,11 +108,10 @@ class HTTPServer(ServerSocket):
         req.get_socket().close()
         req.stop_time = time.time()
         req.total_time = req.stop_time - req.start_time
-        log.debug(req.method, req.url, " -> ", res.code, " in %.3f ms" % (req.total_time * 1000))
+        log.debug("%s [%s]" % (req.method, ip), req.url, " -> " , res.code," in %.3f ms" % (req.total_time*1000))
 
     def handlerequest(self, req, res):
         pass
-
 
     def serve_file(self, req: HTTPRequest, res : HTTPResponse):
         res.serve_file(os.path.join(self.www_dir, req.path[1:]))

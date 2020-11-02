@@ -65,6 +65,9 @@ class SocketWrapper:
     def read_str(self, len=1):
         return str(self.read(len), encoding="utf8")
 
+    def get_ip(self):
+        return self._socket.getpeername()[0]
+
     def readline(self, encoding="utf8"):
         out=""
         x=self.read(1)
@@ -106,6 +109,7 @@ class ServerSocket(SocketWrapper):
         (clientsocket, address) = self._socket.accept()
         client = SocketWrapper(clientsocket)
         if cb: cb(client, args)
+
         return client
 
 

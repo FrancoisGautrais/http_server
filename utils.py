@@ -1,3 +1,4 @@
+import json
 import threading
 import uuid
 import random
@@ -210,3 +211,35 @@ def new_id( size = 32):
     for i in range(size):
         out += _KEY_CHARACTER[random.randint(0, n - 1)]
     return out
+
+
+
+
+def _deepcassign(src : dict, mod : dict):
+    if not isinstance(src, dict) or not isinstance(mod, dict):
+        return None
+    for key in mod:
+        if key in src:
+            if isinstance(src[key], dict):
+                if isinstance(mod[key], dict):
+                    src[key]=_deepcassign(src[key], mod[key])
+                else:
+                    src[key]=mod[key]
+            else:
+                if isinstance(mod[key], dict):
+                    src[key]=_deepcassign({}, mod[key])
+                else:
+                    src[key]=mod[key]
+        else:
+            if isinstance(mod[key], dict):
+                src[key]=_deepcassign({}, mod[key])
+            else:
+                src[key]=mod[key]
+    return src
+
+def deepassign(src, *args):
+    for arg in args:
+        src=_deepcassign(src, arg)
+    return src
+
+
