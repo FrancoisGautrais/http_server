@@ -7,8 +7,6 @@ import os
 import time
 from .waitqueue import WaitQueue
 import threading
-from .filecache import filecache
-import threading
 
 
 class SecureBool:
@@ -35,7 +33,6 @@ class HTTPServer(ServerSocket):
     N_THREAD=4
     def __init__(self, ip="localhost", attrs={ "mode" : SPAWN_THREAD}):
         ServerSocket.__init__(self)
-        if not filecache.isinit(): filecache.init()
         self._ip=ip
         self._end_loop=SecureBool(True)
         if isinstance(attrs, str): attrs={ "mode": attrs }

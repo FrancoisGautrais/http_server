@@ -5,6 +5,8 @@ class Config:
     def __init__(self):
         self.is_init=False
 
+
+
     def _load(self, filename):
         try:
             with open(filename, "r") as f:
@@ -14,7 +16,7 @@ class Config:
                     return True
         except:
             pass
-        return True
+        return False
 
     def init(self, default=None, filename=[]):
         if not default: default={}
@@ -73,5 +75,6 @@ class Config:
 
 
 cfg = Config()
-cfg.init()
+if not cfg.is_init:
+    cfg.init()
 

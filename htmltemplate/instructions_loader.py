@@ -5,7 +5,7 @@ import sys
 from importlib import import_module
 from inspect import getmembers, isfunction
 
-import log
+from .. import log
 
 
 
@@ -125,7 +125,6 @@ def call( inst):
     global _instance
     if _instance==None: _instance=InstructionsLoader()
     return _instance.call(inst)
-
 
 def builtin_call( name, args, data):
     global _instance

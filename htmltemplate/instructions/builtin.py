@@ -1,5 +1,4 @@
 from urllib import parse
-from ...filecache import filecache
 from ..htmlgen import html_gen_fd
 import  copy
 import json
@@ -18,7 +17,7 @@ def inst_import(args, data): # import without dynamic generation
     out=[]
     try:
         for file in args:
-            with filecache.open(file) as f:
+            with open(file) as f:
                 out.append(f.read())
         return "\n".join(out)
     except FileNotFoundError as err:
@@ -49,7 +48,7 @@ def inst_js_import(args, data):
 def inst_include(args, data):# import with dynamic generation
     x=custom_deepcopy(data)
     try:
-        with filecache.open(args[0]) as f:
+        with open(args[0]) as f:
             if len(args)>1:
                 x.update(args[1])
             return html_gen_fd(f, x, args[0])

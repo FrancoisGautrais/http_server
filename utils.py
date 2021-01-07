@@ -1,13 +1,15 @@
 import json
+import os
+import stat
 import threading
 import uuid
 import random
+
+import magic
 import pystache
 from threading import Lock
 from threading import Thread
 import hashlib
-
-from .filecache import filecache
 
 def path_to_list(p):
     out=[]
@@ -68,7 +70,7 @@ def start_thread(cb : Callback):
 
 
 def html_template(path, data):
-    with filecache.open(path) as file:
+    with open(path) as file:
         return pystache.render(file.read(), data)
 
 def html_template_string(source, data):
@@ -129,6 +131,31 @@ def _init_mime():
 
 _init_mime()
 
+from threading import Lock
+_mime_lock=None
+
+if not _mime_lock:
+    _mime_lock=Lock()
+
+
+class NotInitException(Exception): pass
+
+
+def mime(path):
+    p=path.lower()
+    if p.endswith(".html"): return "text/html"
+    if p.endswith(".css"): return "text/css"
+    if p.endswith(".js"): return "text/javascript"
+    try:
+        _mime_lock.acquire()
+        x=magic.detect_from_filename(path)
+        #log.info(path, ":", x)
+        mi= x.mime_type
+        _mime_lock.release()
+        return mi
+    except:
+        _mime_lock.release()
+        return "text/plain"
 
 
 def mime_to_type(m):
@@ -243,3 +270,10 @@ def deepassign(src, *args):
     return src
 
 
+def file_foreach(dir, fct, recursive=False):
+    for file in os.listdir(dir):
+        path=os.path.join(dir, file)
+        f = os.stat(path)
+        fct(path,f)
+        if stat.S_ISDIR(f.st_mode) and recursive:
+            file_foreach(path, fct, True)

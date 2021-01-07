@@ -1,3 +1,7 @@
+
+from . import utils, cache
+from .cache import Cache
+from .htmltemplate.htmlgen import html_meta
 from .httpserver import HTTPServer
 from .httprequest import HTTPRequest, HTTPResponse
 from .afdurl import testurl
@@ -18,6 +22,41 @@ class RESTUser:
     def get_api_key(self): return None
     def get_data(self): raise NotImplementedError("Not implemented")
 
+
+
+def get_base(url, file):
+    if not url: return "."
+    url=url[1:] if url[0]=="/" else url
+    url=url[:-1] if url and url[-1]=="/" else url
+    nurl=len(url.split("/"))
+    file = os.path.dirname(file)
+    file = file if file else "."
+    nfile=len(file.split("/"))-1
+    return os.path.join(file,"/".join([".."]*(nfile-nurl)))
+
+
+class StaticDir:
+
+    def __init__(self, dir, needauth, authcb):
+        self.dir = dir
+        self.needauth = needauth
+        self.authcb = authcb
+        self.gen = None
+        self.meta = None
+        self.cache = None
+
+    def set_meta(self, x):
+        self.meta = x
+        return self
+
+    def set_gen(self, x):
+        self.gen = x
+        return self
+
+    def set_cache(self, x):
+        self.cache = x
+        return self
+
 class RESTServer(HTTPServer):
     DEFAULT_SESSION_OPTION={
         "session_duration" : 3600*24,
@@ -34,6 +73,7 @@ class RESTServer(HTTPServer):
         self.default(RESTServer._404, self)
         self.static_dirs={}
         self.sessions={}
+        self.cached=Cache()
         self.index=dictget(restoption, "index", "index.html")
         self.users={}
         if "auth" in restoption:
@@ -180,7 +220,9 @@ class RESTServer(HTTPServer):
         else:
             res.serv_json_ok()
 
-
+    def precache(self, path, recursive=True):
+        cache=self.cached
+        utils.file_foreach(path, lambda path, idi: cache.cache_file(path) if not idi else None)
 
 
     """
@@ -191,11 +233,31 @@ class RESTServer(HTTPServer):
         :param needauthcb fct(req, res): Bool Callback pour déterminer si la requete nécessite une autorisation
                         Par défaut à Faux
     """
-    def static(self, baseUrl, dir, authcb=None, needauthcb=None):
+    def static(self, baseUrl, dir, authcb=None, needauthcb=None, cached=True):
         dir=os.path.abspath(dir)
         if dir[-1]=="/": dir=dir[:-1]
         if baseUrl[-1]=="/": baseUrl=baseUrl[:-1]
-        self.static_dirs[baseUrl]=(dir, needauthcb, authcb, None)
+        sd=StaticDir(dir, needauthcb, authcb)
+        if cached: sd.set_cache(self.cached)
+        self.static_dirs[baseUrl]=sd
+
+    """
+        Ajoute une route statique avec des imports statiques
+        :param baseUrl str Url pour acceder auc contenu
+        :param dir str Dossier local contenant les fichiers
+        :param authcb fct(req, res): Bool Callback pour déterminer si l'utilisateur est autorisé
+        :param needauthcb fct(req, res): Bool Callback pour déterminer si la requete nécessite une autorisation
+                        Par défaut à Faux
+    """
+    def static_meta(self, baseUrl, dir, authcb=None, needauthcb=None, cached=True):
+        dir=os.path.abspath(dir)
+        if dir[-1]=="/": dir=dir[:-1]
+        if baseUrl[-1]=="/": baseUrl=baseUrl[:-1]
+        sd=StaticDir(dir, needauthcb, authcb).set_cache(self.cached)
+        if cached: sd.set_cache(self.cached)
+        self.static_dirs[baseUrl]=sd
+
+
 
     """
             Ajoute une route statique
@@ -210,7 +272,7 @@ class RESTServer(HTTPServer):
         dir = os.path.abspath(dir)
         if dir[-1] == "/": dir = dir[:-1]
         if baseUrl[-1] == "/": baseUrl = baseUrl[:-1]
-        self.static_dirs[baseUrl] = (dir, needauthcb, authcb, gen)
+        self.static_dirs[baseUrl] = StaticDir(dir, needauthcb, authcb).set_gen(gen)
 
     """
         Ajoute une route pour gérer une requete REST
@@ -227,8 +289,8 @@ class RESTServer(HTTPServer):
             for url in urls:
                 self._handlers[method.upper()][url] = Callback(fct, obj, data)
 
-
-    def ___route_file_handle(self, req: HTTPRequest, res: HTTPResponse, filename, ishtml, needAuth, authFail, autorise):
+    def ___route_file_handle(self, req: HTTPRequest, res: HTTPResponse, filename, ishtml, needAuth, authFail, autorise, cached):
+        cache=self.cached if cached else None
         if needAuth:
             session = self.get_req_session(req, res, autorise=autorise, isHtml=ishtml, sendResp=not authFail)
             user = None
@@ -241,9 +303,10 @@ class RESTServer(HTTPServer):
                 if authFail:
                     return authFail(req, res)
             else:
-                return res.serve_file(filename)
+                return res.serve_file(filename, cache=cache)
         else:
-            res.serve_file(filename)
+            res.serve_file(filename, cache=cache)
+
     """
         Ajoute une route vers une génération de fichier depuis un fichier pattern
         :param methods (str, list, tuple) la ou les méthode à utiliser
@@ -255,9 +318,78 @@ class RESTServer(HTTPServer):
                     qui n'a pas les droits suffisants (None -> Réponse classique de get_req_user)
         :param autorise (fct(user) ou None) fonction qui permet de vérifier les droit de l'utilisateur
     """
-    def route_file(self, methods, urls, filename, isHtml=True, needAuth=False, authFail=None, autorise = None):
-        return self.route(methods, urls, 
-                          lambda req, res: self.___route_file_handle(req, res, filename, isHtml, needAuth, authFail, autorise ))
+
+    def route_file(self, methods, urls, filename, isHtml=True, needAuth=False, authFail=None, autorise=None, cached=None):
+        return self.route(methods, urls,
+                          lambda req, res: self.___route_file_handle(req, res, filename, isHtml, needAuth, authFail,
+                                                                     autorise, cached))
+
+
+
+
+    def ___route_file_handle_meta(self, req: HTTPRequest, res: HTTPResponse,
+                                  filename,
+                                  ishtml,
+                                  needAuth,
+                                  authFail,
+                                  autorise,
+                                  cached,
+                                  base):
+        cache=self.cached if cached else None
+        if needAuth:
+            session = self.get_req_session(req, res, autorise=autorise, isHtml=ishtml, sendResp=not authFail)
+            user = None
+            if not session:
+                user = self.get_req_user(req, res, autorise=autorise, isHtml=ishtml, sendResp=not authFail)
+            else:
+                user = session.user
+            if not user:
+                if authFail:
+                    return authFail(req, res)
+            else:
+                return res.serve_file_meta(base, filename, cache=cache)
+        else:
+            return res.serve_file_meta(base, filename, cache=cache)
+
+
+    """
+        Ajoute une route vers une génération de fichier meta (uniqument inclusion d'autres fichiers avec <#indeclude("")>
+        :param methods (str, list, tuple) la ou les méthode à utiliser
+        :param urls (str, list, tuple) La ou les urls à gérer
+        :param filename (str) Le fichier à charger
+        :param isHtml (bool) Renvoyer un réponse pour html ou pour api
+        :param needAuth (bool) Une authentification est nécessaire pour avoir acces à la ressource
+        :param authFail (fct(req, res) ou None) Callback a appeller en cas d'un utilisateur non identifié ou 
+                    qui n'a pas les droits suffisants (None -> Réponse classique de get_req_user)
+        :param autorise (fct(user) ou None) fonction qui permet de vérifier les droit de l'utilisateur
+        :param cached (bool) 
+        :param contentType (str) 
+    """
+    def route_file_meta(self, methods, urls, filename,
+                        isHtml=True,
+                        needAuth=False,
+                        authFail=None,
+                        autorise = None,
+                        cached = True,
+                        contentType="text/html"):
+        if not isinstance(urls, (list, tuple)): urls=[urls]
+        for url in urls:
+            base=get_base(url, filename)
+            if cached:
+                data=html_meta(base, filename)
+                self.cached.cache_data(filename, data, contentType)
+            self.route(methods, url,
+                          lambda req, res: self.___route_file_handle_meta(req, res, filename,
+                                                                      isHtml,
+                                                                      needAuth,
+                                                                      authFail,
+                                                                      autorise,
+                                                                      cached,
+                                                                      base
+                                                                      ))
+
+
+
 
     def ___route_file_gen_handle(self, req : HTTPRequest, res : HTTPResponse, filename, ishtml, baseData, fct, authFail, autorise, needAuth):
         session = self.get_req_session(req, res, autorise=autorise, isHtml=ishtml, sendResp=(not authFail and needAuth))
@@ -333,6 +465,7 @@ class RESTServer(HTTPServer):
         :param data Données supplémentaires à fournir
         :param methods (str ou list) La ou les méthodes HTTP à gérer ou None
     """
+
     def default(self, fct, obj=None, data=None, methods=None):
         if methods:
             self.route(methods, None, fct, obj, data)
@@ -377,14 +510,20 @@ class RESTServer(HTTPServer):
             p=req.path
             for base in self.static_dirs:
                 if p.startswith(base):
-                    dir, needeauth, auth, gen = self.static_dirs[base]
+                    sd = self.static_dirs[base]
+                    gen = sd.gen
                     p=p[len(base):]
                     if len(p)==0: p=self.index
                     if p[0]=="/": p=p[1:]
-                    path=os.path.join(dir,p)
-                    if  (not auth) or (not needeauth) or (not needeauth.call((req, res))) or auth.call((req, res)):
-                        if gen==None:
-                            res.serve_file( path, base+"/"+p)
+                    path=os.path.join(sd.dir,p)
+                    if  (not sd.authcb) \
+                            or (not sd.needeauth) \
+                            or (not sd.needeauth.call((req, res))) \
+                            or sd.authcb.call((req, res)):
+                        if sd.gen==None and sd.meta==None:
+                            res.serve_file( path, base+"/"+p, cache=sd.cache)
+                        elif sd.meta:
+                            res.serv_file_meta(path, cache=sd.cache)
                         else:
                             if not isinstance(gen, object): gen=gen(req, res)
                             res.serve_file_gen(path, gen)

@@ -7,13 +7,14 @@ import traceback
 import os
 import time
 
+from . import utils
+
 from . import log
-from .filecache import filecache
 from .utils import dictinit
 
 from .socketwrapper import SocketWrapper
 from .formfile import FormFile
-from .htmltemplate.htmlgen import html_gen
+from .htmltemplate.htmlgen import html_gen, html_meta
 from .htmltemplate.instructions_loader import InstructionStackException
 
 HTTP_OK=200
@@ -283,7 +284,9 @@ class HTTPResponse(_HTTP):
         self._headers[key]=val
 
     def end(self, data, contentType=None):
-        if contentType: self.content_type(contentType)
+        if contentType:
+            self.content_type(contentType)
+
         self.body=data
         if isinstance(data, str):
             self._body_type=BODY_STRING
@@ -297,14 +300,28 @@ class HTTPResponse(_HTTP):
             self._body_type=BODY_EMPTY
 
 
+    def serve_file_meta(self, base, path : str, cache=None):
+        if not cache or not cache.has(path):
+            if not os.path.isfile(path):
+                log.error("Le fichier '"+str(path)+"' est introuvable")
+                self.serve404()
+                return None
+            m=utils.mime(path)
+        else:
+            m=cache.mime(path)
+
+        self.content_type(m)
+        self.header("Content-Length", str(os.stat(path).st_size))
+        self.end(html_meta(base, path, cache=cache))
+
+
 
     def serve_file_gen(self, path : str, data={}):
-
         if not os.path.isfile(path):
             log.error("Le fichier '"+str(path)+"' est introuvable")
             self.serve404()
             return None
-        m=filecache.mime(path)
+        m=utils.mime(path)
         self.content_type(m)
         self.header("Content-Length", str(os.stat(path).st_size))
         data["_request"] = self.request
@@ -329,10 +346,13 @@ class HTTPResponse(_HTTP):
         else:
             self.serve_file(path)
 
-    def serve_file(self, path: str, urlReq=None, forceDownload=False, data={}, contenlength=None):
+    def serve_file(self, path: str, urlReq=None, forceDownload=False, data={}, contenlength=None, cache=None):
         fd = None
+        if cache and not cache.has(path): cache=None
+
         try:
-            fd = filecache.open(path, "rb")
+            if not cache:
+                fd = open(path, "rb")
         except Exception as err:
             self.code = HTTP_NOT_FOUND
             self.msg = STR_HTTP_ERROR[HTTP_NOT_FOUND]
@@ -344,7 +364,7 @@ class HTTPResponse(_HTTP):
             return
 
         # self._isStreaming=True
-        self.content_type(filecache.mime(path))
+        self.content_type(utils.mime(path))
         if not contenlength:
             self.header("Content-Length", str(os.stat(path).st_size))
         else:
@@ -353,7 +373,10 @@ class HTTPResponse(_HTTP):
         if forceDownload:
             self.header("Content-Disposition", "attachment; filename=\"" + \
                         os.path.basename(path) + "\"")
-        self.end(fd)
+        if cache:
+            self.end(cache[path], cache.mime(path))
+        else:
+            self.end(fd)
         # self.end(open(path, "rb"))
 
     def serve_file_data(self, data, mime : str, filename : str,  forceDownload=False):
@@ -372,14 +395,14 @@ class HTTPResponse(_HTTP):
     def serve_large_file(self, path: str, contenlength=None):
         fd = None
         try:
-            fd = filecache.open(path, "rb")
+            fd = open(path, "rb")
         except Exception as err:
             self.code = HTTP_NOT_FOUND
             self.msg = STR_HTTP_ERROR[HTTP_NOT_FOUND]
             self.content_type("text/plain")
 
         # self._isStreaming=True
-        self.content_type(filecache.mime(path))
+        self.content_type(utils.mime(path))
         if not contenlength:
             self.header("Content-Length", str(os.stat(path).st_size))
         else:
