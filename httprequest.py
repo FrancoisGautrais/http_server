@@ -300,7 +300,7 @@ class HTTPResponse(_HTTP):
             self._body_type=BODY_EMPTY
 
 
-    def serve_file_meta(self, base, path : str, cache=None):
+    def serve_file_meta(self, base, path : str, cache=None, debug=False):
         if not cache or not cache.has(path):
             if not os.path.isfile(path):
                 log.error("Le fichier '"+str(path)+"' est introuvable")
@@ -312,7 +312,7 @@ class HTTPResponse(_HTTP):
 
         self.content_type(m)
         self.header("Content-Length", str(os.stat(path).st_size))
-        self.end(html_meta(base, path, cache=cache))
+        self.end(html_meta(base, path, cache=cache, debug=debug))
 
 
 

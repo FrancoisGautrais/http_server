@@ -145,8 +145,9 @@ class HtmlGen:
 
 class HtmlMetaIncludeGen:
 
-    def __init__(self,base,  filename, cache, encoding="utf-8", data=None):
+    def __init__(self,base,  filename, cache, encoding="utf-8", data=None, debug=False):
         self.filename=filename
+        self.debug=debug
         self.encoding=encoding
         self.base=base
         self.dirname=os.path.dirname(self.filename)
@@ -239,7 +240,7 @@ class HtmlMetaIncludeGen:
         while i<l:
             start=self.file.find(pattern, i)+len(pattern)
             if start<len(pattern):
-                return self.process_other_include(out+self.file[i:])
+                return (out+self.file[i:]) if self.debug else self.process_other_include(out+self.file[i:])
 
             tmp=self.file.find("\")>", start)
             out+=self.file[i:start-len(pattern)]
@@ -250,15 +251,15 @@ class HtmlMetaIncludeGen:
             i=tmp+3
 
 
-        return self.process_other_include(out)
+        return out if self.debug else self.process_other_include(out)
 
 
 
-def html_meta(base, filename, cache=None, encoding="utf-8"):
-    return HtmlMetaIncludeGen(base, filename, cache).gen()
+def html_meta(base, filename, cache=None, encoding="utf-8", debug=False):
+    return HtmlMetaIncludeGen(base, filename, cache, debug=debug).gen()
 
-def html_meta_data(base, filename, data, cache=None, encoding="utf-8"):
-    return HtmlMetaIncludeGen(base, filename, cache, encoding, data).gen()
+def html_meta_data(base, filename, data, cache=None, encoding="utf-8", debug=False):
+    return HtmlMetaIncludeGen(base, filename, cache, encoding, data, debug=debug).gen()
 
 
 def html_gen(filename, data):

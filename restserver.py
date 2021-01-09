@@ -334,7 +334,8 @@ class RESTServer(HTTPServer):
                                   authFail,
                                   autorise,
                                   cached,
-                                  base):
+                                  base,
+                                  debug):
         cache=self.cached if cached else None
         if needAuth:
             session = self.get_req_session(req, res, autorise=autorise, isHtml=ishtml, sendResp=not authFail)
@@ -347,9 +348,9 @@ class RESTServer(HTTPServer):
                 if authFail:
                     return authFail(req, res)
             else:
-                return res.serve_file_meta(base, filename, cache=cache)
+                return res.serve_file_meta(base, filename, cache=cache, debug=debug)
         else:
-            return res.serve_file_meta(base, filename, cache=cache)
+            return res.serve_file_meta(base, filename, cache=cache, debug=debug)
 
 
     """
@@ -371,6 +372,7 @@ class RESTServer(HTTPServer):
                         authFail=None,
                         autorise = None,
                         cached = True,
+                        debug=False,
                         contentType="text/html"):
         if not isinstance(urls, (list, tuple)): urls=[urls]
         for url in urls:
@@ -385,7 +387,8 @@ class RESTServer(HTTPServer):
                                                                       authFail,
                                                                       autorise,
                                                                       cached,
-                                                                      base
+                                                                      base,
+                                                                      debug
                                                                       ))
 
 
