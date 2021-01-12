@@ -10,6 +10,9 @@ import pystache
 from threading import Lock
 from threading import Thread
 import hashlib
+from hashlib import sha3_512
+import base64
+
 
 def path_to_list(p):
     out=[]
@@ -80,6 +83,8 @@ def sha256(s):
     m=hashlib.sha256()
     m.update(bytes(s, "utf-8"))
     return m.digest()
+
+
 
 def tuplist_to_dict(tuplelist):
     out={}
@@ -277,3 +282,34 @@ def file_foreach(dir, fct, recursive=False):
         fct(path,f)
         if stat.S_ISDIR(f.st_mode) and recursive:
             file_foreach(path, fct, True)
+
+
+def dictassign(dest, *sources):
+    for d in sources:
+        for key in d:
+            dest[key]=d[key]
+    return dest
+
+def dictcopy(*sources):
+    return dictassign({}, *sources)
+
+
+def urlencode(x):
+    return parse.quote_plus(x)
+
+def urldecode(x):
+    return parse.quote_plus(x)
+
+def password(pwd):
+    x=sha3_512(pwd.encode()).digest()
+    return base64.b64encode(x).decode("ascii")
+
+def check_password(plain, encr):
+    return password(plain)==encr
+
+def new_key(size):
+    out = ""
+    chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+    for i in range(size):
+        out += chars[random.randint(0, len(chars) - 1)]
+    return out

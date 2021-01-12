@@ -76,8 +76,9 @@ class RESTServer(HTTPServer):
         self.cached=Cache()
         self.index=dictget(restoption, "index", "index.html")
         self.users={}
+        self._session_options={}
         if "auth" in restoption:
-            obj=dictassign({}, restoption["auth"], RESTServer.DEFAULT_SESSION_OPTION)
+            obj=dictassign(self._session_options, RESTServer.DEFAULT_SESSION_OPTION, restoption["auth"])
             self.set_auth( obj["url"], obj["users"], obj["session_schem"], obj["auth_page"],
                            obj["session_duration"], obj["on_auth"])
         else:
@@ -337,13 +338,15 @@ class RESTServer(HTTPServer):
                                   base,
                                   debug):
         cache=self.cached if cached else None
+
         if needAuth:
             session = self.get_req_session(req, res, autorise=autorise, isHtml=ishtml, sendResp=not authFail)
+
             user = None
             if not session:
                 user = self.get_req_user(req, res, autorise=autorise, isHtml=ishtml, sendResp=not authFail)
             else:
-                user = session.user
+                user = session["user"]
             if not user:
                 if authFail:
                     return authFail(req, res)
@@ -451,7 +454,9 @@ class RESTServer(HTTPServer):
         if not user and needAuth:
             if authFail:
                 return authFail(req, res)
-            else: return
+            else:
+                res.serv_json_unauthorized("Non autorisé")
+                return
 
         callback(req, res, session, user)
 

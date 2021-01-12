@@ -96,6 +96,8 @@ def c(*args): log(Log.CRITICAL, *args)
 
 def close(): Log._INSTANCE.close()
 
+def init(level=Log.DEBUG, fd=sys.stdout):
+    Log.init(level, fd)
 
 import os
 

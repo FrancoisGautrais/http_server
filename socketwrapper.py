@@ -112,5 +112,9 @@ class ServerSocket(SocketWrapper):
 
         return client
 
+    def send_accept(self, x=None):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((self._ip, self._port))
+            if x: x(self, s)
 
 

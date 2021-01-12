@@ -341,8 +341,6 @@ class HTTPResponse(_HTTP):
                     i+=1
                 self.code=500;
                 self.end(out+"</ul></body></html>")
-
-
         else:
             self.serve_file(path)
 
@@ -488,8 +486,7 @@ class HTTPResponse(_HTTP):
                     soc.send(buffer)
                 out.close()
         except IOError as err:
-            log.critical("Write error, \n================\nrecv:\n", err," \nsent:\n",
-                         soc.sent,"\n==========================")
+            log.critical("Erreur d'écriture:", err," (envoyé: ",soc.sent," octets)")
 
     def no_cache(self):
         self.header("Cache-Control", "max-age=0, no-cache, no-store, must-revalidate")

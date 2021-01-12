@@ -65,6 +65,7 @@ class HTTPServer(ServerSocket):
 
     def stop(self):
         self._end_loop.set(False)
+        self.send_accept()
 
 
     def _handlerequest_loop(self, i):
@@ -94,11 +95,13 @@ class HTTPServer(ServerSocket):
             try:
                 req = HTTPRequest(req)
             except DisconnectException:
-                log.critical("========== Error unable to read HTTP first line ==========")
+                return
+            except OSError:
+                return
 
         req.parse()
         ip = req.get_ip()
-        res=HTTPResponse(req, 200, )
+        res=HTTPResponse(req, 200)
         self.handlerequest(req, res)
 
         res.write(req.get_socket())

@@ -1,10 +1,12 @@
 import json
 from  . import utils
+from http_server import log
 class Config:
 
     def __init__(self):
         self.is_init=False
-
+        self.output_file="config.json"
+        self.is_default=True
 
 
     def _load(self, filename):
@@ -12,7 +14,8 @@ class Config:
             with open(filename, "r") as f:
                 js = json.loads(f.read())
                 if isinstance(js, dict):
-                    self.config=utils.deepassign(self.config, tmp)
+                    self.config=utils.deepassign(self.config, js)
+                    self.is_default=False
                     return True
         except:
             pass
@@ -25,9 +28,13 @@ class Config:
         if not isinstance(filename, (list, tuple)): filename=[filename]
         for file in filename:
             if self._load(file):
+                log.i("Configuration '%s' chargée" % file)
                 break
 
-
+    def write(self, path=None):
+        if not path: path=self.output_file
+        with open(path,"w") as f:
+            f.write(json.dumps(self.config, indent=4))
 
     def get(self, path):
         l = path.split(".")
@@ -53,6 +60,10 @@ class Config:
             else: return None
         return curr.__class__
 
+
+    def set_complete(self, x):
+        utils.deepassign(self.config, x)
+
     def set(self, path, value):
         l = path.split(".")[:]
         l1 = l[:-1]
@@ -74,7 +85,5 @@ class Config:
         return self.set(item, val)
 
 
-cfg = Config()
-if not cfg.is_init:
-    cfg.init()
+
 
