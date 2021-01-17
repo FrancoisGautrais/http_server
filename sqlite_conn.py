@@ -2,7 +2,7 @@ import os
 import time
 import json
 import sqlite3
-
+import threading
 from http_server import log
 
 from hashlib import sha3_512
@@ -113,25 +113,42 @@ class SQConnector:
         is_init =  os.path.exists(file) or not os.path.isfile(file)
         self.conn = sqlite3.connect(file, check_same_thread=False)
         self.conn.execute("PRAGMA case_sensitive_like = false;")
+        self._lock=threading.Lock()
         if not is_init:
             self.init_base()
 
+    def lock(self):
+        self._lock.acquire()
 
-    def exec(self, sql):
+    def unlock(self):
+        self._lock.release()
+
+    def exec(self, sql, protect=True):
         c = self.conn.cursor()
         try:
-            return c.execute(sql).fetchall()
+            if protect: self.lock()
+            x=c.execute(sql).fetchall()
+            if protect: self.unlock()
+            return x
         except Exception as err:
             log.error("Eror sql: %s  (%s)" % (str(err), sql))
             return None
 
-    def onerow(self, sql):
+    def onerow(self, sql, protect=True):
         c = self.conn.cursor()
-        return c.execute(sql).fetchone()
+        if protect: self.lock()
+        tmp1=c.execute(sql)
+        tmp2=tmp1.fetchone()
+        if protect: self.unlock()
+        return tmp2
 
-    def one(self, sql):
+    def one(self, sql, protect=True):
         c = self.conn.cursor()
-        return c.execute(sql).fetchone()[0]
+        if protect: self.lock()
+        tmp1=c.execute(sql)
+        tmp2=tmp1.fetchone()
+        if protect: self.unlock()
+        return tmp2[0]
 
     def init_base(self):
         raise NotImplementedError()
@@ -142,17 +159,23 @@ class SQConnector:
                 if not self.table_exists(x): return False
             return True
         else:
-            return self.one("select count(name) from sqlite_master where type='table' AND name='%s'" % name) > 0
+            return self.one("select count(name) from sqlite_master where type='table' AND name='%s'" % name, False) > 0
 
     def init_user(self, username, file):
-        usr = self.exec("select name from users where name='%s'" % username)
+        usr = self.exec("select name from users where name='%s'" % username, False)
         if not len(usr):
             self.exec("insert into users (name, password) values ('%s', '%s') " % (username, utils.password("")))
             self.conn.commit()
 
     def commit(self):
-        return self.conn.commit()
+        try:
+            return self.conn.commit()
+        except:
+            pass
 
 
+    def close(self):
+        self.commit()
+        self.conn.close()
 
 
